@@ -8,6 +8,14 @@ This repository is open to contributions with alternative steps, troubleshooting
 
 My SD sits far from me inside a cabinet, and it's used as a media center so turning it on an off happens all the time. 2nd+ gen Steam Decks support waking the device but gen 1 never got this ability, unless you happen to have a special dock or a Steam Controller. While I got a hold of a Steam Controller, the fact that it uses batteries you have to buy or recharge is very annoying.
 
+## Demo
+
+
+
+https://github.com/sickmartian/sd-rpi-wakeup/assets/492246/e8fb095b-c3b9-4aff-95a4-d5f20aa21538
+
+
+
 ## Hardware needed
 
 - Steam Deck
