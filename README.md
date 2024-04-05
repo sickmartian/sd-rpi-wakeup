@@ -1,5 +1,21 @@
 # Wake up your Steam Deck remotely
 
+- [Wake up your Steam Deck remotely](#wake-up-your-steam-deck-remotely)
+  - [What and why?](#what-and-why)
+  - [Demo](#demo)
+  - [Hardware needed](#hardware-needed)
+  - [Software needed](#software-needed)
+  - [General idea](#general-idea)
+  - [Why a custom image?](#why-a-custom-image)
+  - [SSH Keys gathering](#ssh-keys-gathering)
+  - [Using the image](#using-the-image)
+    - [Connect the RPi](#connect-the-rpi)
+  - [Optional - Manual setup](#optional---manual-setup)
+  - [Optional - Allow the Steam Deck to suspend w/o password](#optional---allow-the-steam-deck-to-suspend-wo-password)
+  - [Optional - Create a remote-control with Termux](#optional---create-a-remote-control-with-termux)
+  - [Other considerations](#other-considerations)
+  - [Links and resources](#links-and-resources)
+
 ## What and why?
 
 This guide helps you setup a 1st gen Steam Deck (SD), placed in a Steam Docking Station (SDS), to wake up remotely using a Raspberry Pi (RPi) with OTG capabilities by simulating a key press. This repository consists of an overview of the process and [an RPi OS image](https://github.com/sickmartian/sd-rpi-wakeup/releases) to use on the RPi, as well as links to other guides and sources used to put this together.
@@ -21,23 +37,14 @@ https://github.com/sickmartian/sd-rpi-wakeup/assets/492246/e8fb095b-c3b9-4aff-95
 - Steam Deck
 - Steam Docking Station (other docks may work too)
 - Raspberry Pi Zero 2 W (or Raspberry Pi 4, or any RPi that supports OTG should work but I this is only tried on RPi Zero 2 W)
-  - If you don't have one, you can find the cheapest RPi closest to you with [rpilocator](https://rpilocator.com/). For reference, I got an [RPi Zero 2 W](https://rpilocator.com/?cat=PIZERO2) with SKU `SC0510` (no headers)
+  - If you don't have one, you can find the cheapest RPi closest to you with [rpilocator](https://rpilocator.com/). For reference, I got an [RPi Zero 2 W](https://rpilocator.com/?cat=PIZERO2) with SKU `SC0510` (no headers) and you might want to get a case, HDMI mini adaptaer and OTG cable while you are at it.
 - MicroSD Card, to install the OS on the RPi
 - [USB A to micro USB male to male cable](./micro-usb-to-usb-a.jpg), or a combination of [USB-A to micro USB female to male OTG cable and a USB-A to USB-A male to male cable](./otg-and-usba-usba-combo.jpg)
 - Wi-Fi network the RPi supports (RPi Zero 2 W only sees my 2.4 GHz network, but my RPi 3 B+ can see the 5 GHz one, so I assume the RPi 4 can too)
 - Some way to read the SD card
   - e.g. the PC has a slot for SD and the MicroSD card comes with an adapter, or a USB to MicroSD converter or similar
-- PC - ideally with MacOS or Linux
-  - In case you don't want to use the pre-packaged OS image it should be powerful enough to run Docker and compile the Linux kernel. I'm using a MacBook Pro with Apple Silicon and will be linking to some instructions I found useful [below](#optional---manual-setup).
-- (Optional) Power source for the RPi
-  - I was able to use the SDS to power the RPi Zero 2 W, but that might not work with all RPis or all docks
-  - It may also be useful to repurpose the RPi in the future
-- (Optional) Case for the RPi
-  - Depends on the RPi model. Mine came with the RPi
-- (Optional) HDMI mini to HDMI cable or adapter
-  - Can help with troubleshooting, or if you want to repurpose the RPi later on
-- (Optional) Device to run bash scripts that wake or make the SD sleep
-  - Can be the PC, but I use an Android phone with Termux for convenience
+- PC - ideally with MacOS or Linux, [Windows could work if you set it up to run bash with WSL](https://www.howtogeek.com/249966/how-to-install-and-use-the-linux-bash-shell-on-windows-10/)
+  - In case you don't want to use the pre-packaged OS image the PC should be powerful enough to run Docker and compile the Linux kernel. I'm using a MacBook Pro with Apple Silicon and will be linking to some instructions I found useful [below](#optional---manual-setup).
 
 ## Software needed
 
@@ -52,11 +59,23 @@ https://github.com/sickmartian/sd-rpi-wakeup/assets/492246/e8fb095b-c3b9-4aff-95
 
 ## General idea
 
-Setting things up is a multi-step process. It all gets a bit more complex since, at the time of writing, the official RPi Linux kernel [has a bug](https://github.com/raspberrypi/linux/issues/3977), which makes it so that even if the RPi is recognized as a keyboard, it doesn't think it can wake the device it's connected to.
+```mermaid
+graph LR;
+    PC --ssh--> RPI[Raspberry Pi] --Keypress--> SD[Steam Deck];
+    Android[Optional - Android w/Termux] --ssh--> RPI;
+```
 
-Luckily, [mdavaev](https://github.com/mdevaev) from the PiKVM project commented on the bug thread with a patch they created, and [jlian](https://github.com/jlian) provides step by step instructions on how to compile the kernel while applying the patch, and how to copy the new kernel into the RPi system.
+We want to setup the RPi to receive `ssh` commands and press a key on the Steam Deck to wake it up.
 
-For your convenience, you can download the [pre-packaging an OS image](https://github.com/sickmartian/sd-rpi-wakeup/releases) with the patch applied, so all you really would need to do is download a big file and install it on your RPi as an OS.
+First we are going to get or create the `ssh` identities from where you want to wake the SD, then setup the RPi and hook all together. Ideally with a single command and no password we can wake up the SD.
+
+Then, optionally, we can also make the sleep process not require a password, and put these scripts in a way we can remote control the sleep and wake up using Termux on an Android device.
+
+## Why a custom image?
+
+This should be straightforward but, at the time of writing, the official RPi Linux kernel [has a bug](https://github.com/raspberrypi/linux/issues/3977), which makes it so that even if the RPi is recognized as a keyboard, it doesn't think it can wake the device it's connected to.
+
+Luckily, [mdavaev](https://github.com/mdevaev) from the PiKVM project commented on the bug thread with a patch they created, and [jlian](https://github.com/jlian) provides step by step instructions on how to compile the kernel while applying the patch, and how to copy the new kernel into the RPi system. For your convenience, you can download the [pre-packaging an OS image](https://github.com/sickmartian/sd-rpi-wakeup/releases) with the patch applied, so all you really would need to do is download a big file and install it on your RPi as an OS.
 
 If you wish, the [(Optional) Manual Setup](#optional---manual-setup) section points to the instructions from jilian, so you can build the OS image yourself. This is helpful if you already have an RPi with data you don't want to lose, if you don't want the same OS I'm using, don't trust a random internet person, etc.
 
